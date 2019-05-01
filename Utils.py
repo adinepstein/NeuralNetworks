@@ -6,11 +6,13 @@ import datetime
 
 def softmax(x):
     ex = np.exp(x-np.max(x,axis=1,keepdims=True))
-    return ex/ex.sum(axis=1,keepdims=True)
+    sum_ex = ex/ex.sum(axis=1,keepdims=True)
+    return sum_ex
 
 def cross_enropy(y_one_hot,y_hat):
     size = y_hat.shape[0]
-    y_hat+=0.00000001
+    sum = np.sum(y_hat)/size
+    print(sum)
     loss = -(1.0/size) * np.sum(y_one_hot*np.log(y_hat)+(1-y_one_hot)*np.log(1-y_hat))
     return loss
 

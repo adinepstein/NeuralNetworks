@@ -9,7 +9,7 @@ DROPOUT=True
 DO_PROP = 0.3
 LR= 0.01
 EPOCHS=100
-MINIBATCH_SIZE=20
+MINIBATCH_SIZE=1
 np.random.seed(SEED)
 NUM_ITERATIONS_DROP_LR=10
 DROP_LR=0.5
@@ -26,11 +26,21 @@ class nn_layer:
 
     def activate_input(self,input):
         self.input=input
-        self.activated_output= self.predict(input)
+        self.z= np.dot(input, self.W) + self.b
+        self.activated_output= self.activate(self.z)
         return self.activated_output
 
-    def predict(self,input):
-        z = np.dot(input, self.W) + self.b
+    def predict(self,x,dropout_prop=0.5,dropout=True):
+        if dropout:
+            if self.activation=="softmax":
+                x = np.dot(x, self.W) + self.b
+            else:
+                x = np.dot(x, self.W*(1-dropout_prop)) + self.b*(1-dropout_prop)
+        else:
+            x = np.dot(x, self.W) + self.b
+        return self.activate(x)
+
+    def activate(self,z):
         if self.activation == "relu":
             z = Utils.relu(z)
         elif self.activation == "sigmoid":
@@ -43,11 +53,11 @@ class nn_layer:
 
     def activate_derivative(self):
         if self.activation=="relu":
-            return Utils.relu_derivative(self.activated_output)
+            return Utils.relu_derivative(self.z)
         elif self.activation =="sigmoid":
-            return Utils.sigmoid_derivative(self.activated_output)
+            return Utils.sigmoid_derivative(self.z)
         elif self.activation=="tanh":
-            return Utils.tanh_derivative(self.activated_output)
+            return Utils.tanh_derivative(self.z)
 
     def get_mask(self,prop,num_examples):
         self.mask= np.random.binomial(1,1-prop,(num_examples,self.output_size))
@@ -138,13 +148,9 @@ class model:
         print("epoc #" + str(epoc+1) + ": train_loss: %.3f , dev_loss: %.3f, train_accuracy: %.3f, dev_accuracy: %.3f" % (train_loss,dev_loss,train_acc,dev_acc))
 
     def predict(self,x,dropout_prop=0.5,dropout=True):
-        for l in self.layers:
-            if dropout and l!=self.layers[-1]:
-                l.W = l.W*(1-dropout_prop)
-                l.b = l.b*(1-dropout_prop)
-        for l in self.layers:
-            x = l.predict(x)
-        return x
+            for l in self.layers:
+                x = l.predict(x,dropout_prop,dropout)
+            return x
 
     def calculate_accuracy(self,y_hat,y):
         y= np.argmax(y,axis=1)
@@ -196,12 +202,12 @@ class model:
 
 if __name__ == '__main__':
     model=model()
-    # model.add_layer(nn_layer(2,15,"relu"))
-    # model.add_layer(nn_layer(15,4,"softmax"))
-    # train_x,train_y=model.create_examples_and_labels(1000,2)
-    # val_x,val_y= model.create_examples_and_labels(100,2)
-    model.add_layer(nn_layer(3072,1024,"relu"))
-    model.add_layer(nn_layer(1024,10,"softmax"))
+    # model.add_layer(nn_layer(2,6,"relu"))
+    # model.add_layer(nn_layer(6,4,"softmax"))
+    # train_x,train_y=model.create_examples_and_labels(5,2)
+    # val_x,val_y= model.create_examples_and_labels(2,2)
+    model.add_layer(nn_layer(3072,32,"relu"))
+    model.add_layer(nn_layer(32,10,"softmax"))
     train_x,train_y = Utils.load_data_pickle("train.pkl")
     val_x,val_y = Utils.load_data_pickle("validate.pkl")
     train_x=model.normalize_train_data(train_x)
