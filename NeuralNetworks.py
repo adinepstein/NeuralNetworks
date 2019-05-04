@@ -1,26 +1,30 @@
 import Utils
 import numpy as np
-import pylab
+import datetime
 import pickle
 SEED=1234
 L2_d=0.001
 L2 = True
 DROPOUT=True
-DO_PROP = 0.3
-LR= 0.01
-EPOCHS=100
-MINIBATCH_SIZE=1
-np.random.seed(SEED)
-NUM_ITERATIONS_DROP_LR=10
+DO_PROP = 0.4
+LR= 0.1
+EPOCHS=70
+MINIBATCH_SIZE=10
+NUM_EPOCHS_DROP_LR=8
 DROP_LR=0.5
+
+np.random.seed(SEED)
 class nn_layer:
 
     def __init__(self,input_size,output_size,activation="relu"):
         self.input_size=input_size
         self.output_size=output_size
         self.activation=activation
-        self.W = np.random.uniform(low=-1/input_size,high=1/input_size,size=(input_size,output_size))
+        # random_denominator = (input_size/2)
+        # self.W = np.random.uniform(low=-1/random_denominator,high=1/random_denominator,size=(input_size,output_size))
+        self.W=np.random.randn(input_size,output_size)*np.sqrt(2/input_size)
         self.b = np.zeros(output_size)
+        # self.b = np.random.uniform(low=-1/random_denominator,high=1/random_denominator,size=output_size)
         self.activated_output=0
         self.input=0
 
@@ -94,7 +98,7 @@ class model:
                 next_derivative = next_derivative * layer.activate_derivative()
                 if dropout:
                     next_derivative*=layer.mask
-                layer.der_w=np.dot(layer.input.T,next_derivative)
+                layer.der_w=np.dot(layer.input.T/layer.input.shape[0],next_derivative)
                 layer.der_b= next_derivative
                 next_derivative= np.dot(next_derivative,layer.W.T)
 
@@ -103,7 +107,7 @@ class model:
             layer.der_b=np.mean(layer.der_b,axis=0)
             if l_2:
                 layer.W = layer.W - lr * (layer.der_w +l2_d*layer.W)
-                layer.b = layer.b - lr * layer.der_b
+                layer.b = layer.b - lr * (layer.der_b +l2_d*layer.b)
             else:
                 layer.W=layer.W- lr*layer.der_w
                 layer.b = layer.b - lr*layer.der_b
@@ -115,9 +119,11 @@ class model:
         train_accuracy_list = []
         val_accuracy_list = []
         for epoch in range(epochs):
-            lr = self.decay_lr(lr, epoch)
+            if epoch>1:
+                lr = self.decay_lr2(lr, train_accuracy_list[epoch],train_accuracy_list[epoch-1],train_accuracy_list[epoch-2],0.001)
             train_predict=np.zeros(shape=train_y.shape)
             for i in range(0,train_X.shape[0],batch_size):
+                # print(i)
                 train_x_mini= train_X[i:i+batch_size]
                 train_y_mini = train_y[i:i+batch_size]
                 t_t=self.forward(train_x_mini,dropout_prop,dropout)
@@ -134,7 +140,13 @@ class model:
         Utils.plotdata("Accuracy", "# epoch", "%", "train", train_accuracy_list, "validation", val_accuracy_list)
 
     def decay_lr(self,lr,epoc):
-        if epoc%NUM_ITERATIONS_DROP_LR==0 and epoc!=0:
+        if epoc%NUM_EPOCHS_DROP_LR==0 and epoc!=0:
+            return lr*DROP_LR
+        else:
+            return lr
+
+    def decay_lr_2(self,lr,accuracy_i,accuracy_i_minus_1,accuracy_i_minus_2,distance):
+        if accuracy_i-accuracy_i_minus_1<distance and accuracy_i_minus_1-accuracy_i_minus_2<distance:
             return lr*DROP_LR
         else:
             return lr
@@ -144,8 +156,8 @@ class model:
         self.std = np.std(data)
         return (data-self.avg)/self.std
 
-    def print_loss_accuracy(self,epoc,train_loss,dev_loss,train_acc,dev_acc):
-        print("epoc #" + str(epoc+1) + ": train_loss: %.3f , dev_loss: %.3f, train_accuracy: %.3f, dev_accuracy: %.3f" % (train_loss,dev_loss,train_acc,dev_acc))
+    def print_loss_accuracy(self,epoc,train_loss,val_loss,train_acc,val_acc):
+        print("epoc #" + str(epoc+1) + ": train_loss: %.3f , val_loss: %.3f, train_accuracy: %.3f, val_accuracy: %.3f" % (train_loss,val_loss,train_acc,val_acc))
 
     def predict(self,x,dropout_prop=0.5,dropout=True):
             for l in self.layers:
@@ -206,14 +218,18 @@ if __name__ == '__main__':
     # model.add_layer(nn_layer(6,4,"softmax"))
     # train_x,train_y=model.create_examples_and_labels(5,2)
     # val_x,val_y= model.create_examples_and_labels(2,2)
-    model.add_layer(nn_layer(3072,32,"relu"))
+    model.add_layer(nn_layer(3072,128,"relu"))
+    model.add_layer(nn_layer(128,128,"relu"))
+    model.add_layer(nn_layer(128,64,"relu"))
+    model.add_layer(nn_layer(64, 32, "relu"))
     model.add_layer(nn_layer(32,10,"softmax"))
     train_x,train_y = Utils.load_data_pickle("train.pkl")
     val_x,val_y = Utils.load_data_pickle("validate.pkl")
     train_x=model.normalize_train_data(train_x)
     val_x=(val_x-model.avg)/model.std
     model.train(train_x,train_y,val_x,val_y,MINIBATCH_SIZE,EPOCHS,LR,DO_PROP,DROPOUT)
-    model.save_model_data("test.pkl")
+    model_path = "model2.pkl"
+    model.save_model_data(model_path)
 
 
 
