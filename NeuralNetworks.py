@@ -1,15 +1,14 @@
 import Utils
 import numpy as np
-import datetime
 import pickle
 SEED=1234
-L2_d=0.001
+L2_REDUCE=0.3
 L2 = True
 DROPOUT=True
 DO_PROP = 0.4
-LR= 0.1
-EPOCHS=70
-MINIBATCH_SIZE=10
+LR= 0.05
+EPOCHS=100
+MINIBATCH_SIZE=20
 NUM_EPOCHS_DROP_LR=8
 DROP_LR=0.5
 
@@ -98,42 +97,48 @@ class model:
                 next_derivative = next_derivative * layer.activate_derivative()
                 if dropout:
                     next_derivative*=layer.mask
-                layer.der_w=np.dot(layer.input.T/layer.input.shape[0],next_derivative)
+                layer.der_w=np.dot(layer.input.T,next_derivative)/layer.input.shape[0]
                 layer.der_b= next_derivative
                 next_derivative= np.dot(next_derivative,layer.W.T)
 
-    def update_weights(self,lr,l2_d=1, l_2=False):
+    def update_weights(self,lr,l2_d,num_examples, l_2=False):
         for layer in self.layers:
             layer.der_b=np.mean(layer.der_b,axis=0)
             if l_2:
-                layer.W = layer.W - lr * (layer.der_w +l2_d*layer.W)
-                layer.b = layer.b - lr * (layer.der_b +l2_d*layer.b)
+                layer.W = layer.W - lr * (layer.der_w +l2_d*layer.W/num_examples)
+                layer.b = layer.b - lr * (layer.der_b)
             else:
                 layer.W=layer.W- lr*layer.der_w
                 layer.b = layer.b - lr*layer.der_b
 
+    def suffle_data(self,train_x,train_y):
+        data=np.column_stack([train_x,train_y])
+        np.random.shuffle(data)
+        return data[:,:-10],data[:,-10:]
 
-    def train(self,train_X,train_y,val_X,val_y,batch_size,epochs,lr,dropout_prop=0.5,dropout=True):
+
+    def train(self,train_x,train_y,val_X,val_y,batch_size,epochs,lr,dropout_prop=0.5,dropout=True):
         train_loss_list= []
         val_loss_list = []
         train_accuracy_list = []
         val_accuracy_list = []
         for epoch in range(epochs):
-            if epoch>1:
-                lr = self.decay_lr2(lr, train_accuracy_list[epoch],train_accuracy_list[epoch-1],train_accuracy_list[epoch-2],0.001)
+            train_x,train_y=self.suffle_data(train_x,train_y)
+            if epoch>2:
+                lr = self.decay_lr_2(lr, train_accuracy_list[epoch-1],train_accuracy_list[epoch-2],train_accuracy_list[epoch-3],0.002)
             train_predict=np.zeros(shape=train_y.shape)
-            for i in range(0,train_X.shape[0],batch_size):
+            for i in range(0,train_x.shape[0],batch_size):
                 # print(i)
-                train_x_mini= train_X[i:i+batch_size]
+                train_x_mini= train_x[i:i+batch_size]
                 train_y_mini = train_y[i:i+batch_size]
                 t_t=self.forward(train_x_mini,dropout_prop,dropout)
                 train_predict[i:i+batch_size] = t_t
                 self.backpropogation(train_y_mini, dropout)
-                self.update_weights(lr, L2_d, L2)
+                self.update_weights(lr, L2_REDUCE,batch_size, L2)
             val_output = self.predict(val_X, dropout_prop, dropout)
-            train_loss_list.append(Utils.cross_enropy(train_y, train_predict))
+            train_loss_list.append(Utils.cross_entropy(train_y, train_predict))
             train_accuracy_list.append(self.calculate_accuracy(train_predict, train_y))
-            val_loss_list.append(Utils.cross_enropy(val_y, val_output))
+            val_loss_list.append(Utils.cross_entropy(val_y, val_output))
             val_accuracy_list.append(self.calculate_accuracy(val_output, val_y))
             self.print_loss_accuracy(epoch,train_loss_list[epoch],val_loss_list[epoch],train_accuracy_list[epoch],val_accuracy_list[epoch])
         Utils.plotdata("Loss","# epoch", "loss","train",train_loss_list,"validation",val_loss_list)
@@ -146,7 +151,8 @@ class model:
             return lr
 
     def decay_lr_2(self,lr,accuracy_i,accuracy_i_minus_1,accuracy_i_minus_2,distance):
-        if accuracy_i-accuracy_i_minus_1<distance and accuracy_i_minus_1-accuracy_i_minus_2<distance:
+        if abs(accuracy_i-accuracy_i_minus_1)<distance and abs(accuracy_i_minus_1-accuracy_i_minus_2)<distance:
+            print(lr*DROP_LR)
             return lr*DROP_LR
         else:
             return lr
@@ -219,8 +225,9 @@ if __name__ == '__main__':
     # train_x,train_y=model.create_examples_and_labels(5,2)
     # val_x,val_y= model.create_examples_and_labels(2,2)
     model.add_layer(nn_layer(3072,128,"relu"))
-    model.add_layer(nn_layer(128,128,"relu"))
-    model.add_layer(nn_layer(128,64,"relu"))
+    model.add_layer(nn_layer(128, 128, "relu"))
+    model.add_layer(nn_layer(128, 128, "relu"))
+    model.add_layer(nn_layer(128, 64, "relu"))
     model.add_layer(nn_layer(64, 32, "relu"))
     model.add_layer(nn_layer(32,10,"softmax"))
     train_x,train_y = Utils.load_data_pickle("train.pkl")
