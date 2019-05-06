@@ -10,10 +10,18 @@ def softmax(x):
     # print(np.sum(sum_ex)/ex.shape[0])
     return sum_ex
 
-def cross_enropy(y_one_hot,y_hat):
-    size = y_hat.shape[0]
-    loss = -(1.0/size) * np.sum(y_one_hot*np.log(y_hat)+(1-y_one_hot)*np.log(1-y_hat))
-
+def cross_entropy(y_one_hot,y_hat):
+    # size = y_hat.shape[0]
+    # for row in y_hat:
+    #     for col in row:
+    #         if col==0:
+    #             col+=0.0001
+    # loss = -(1.0/size) * np.sum(y_one_hot*np.log(y_hat)+(1-y_one_hot)*np.log(1-y_hat))
+    # return loss
+    y = np.argmax(y_one_hot,axis=1)
+    size= y_hat.shape[0]
+    log_likelihood = -np.log(y_hat[range(size), y])
+    loss = np.sum(log_likelihood) /size
     return loss
 
 def cross_entropy_softmax_derivative(y_one_hot,y_hat):
@@ -37,10 +45,7 @@ def sigmoid(x):
 def sigmoid_derivative(x):
     return x * (1. - x)
 
-def cross_entropy(y_one_hot,y_hat):
-    loss= np.mean(np.sum(y_one_hot*y_hat,axis=1))
-    loss *= -1
-    return loss
+
 
 def readData(filePath,test=False):
     data = np.genfromtxt(filePath, delimiter=',')
@@ -88,10 +93,11 @@ def load_data_pickle(path,test=False):
 
 if __name__ == '__main__':
     print(datetime.datetime.now())
-    save_to_pickle("test.pkl","test.csv")
-    print(datetime.datetime.now())
+    # save_to_pickle("test.pkl","test.csv")
+    # print(datetime.datetime.now())
     save_to_pickle("validate.pkl", "validate.csv")
+    load_data_pickle("validate.pkl",False)
     print(datetime.datetime.now())
-    save_to_pickle("train.pkl", "train.csv")
-    print(datetime.datetime.now())
+    # save_to_pickle("train.pkl", "train.csv")
+    # print(datetime.datetime.now())
 
