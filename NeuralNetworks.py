@@ -1,17 +1,16 @@
 import Utils
 import numpy as np
 import pickle
-SEED=1234
-L2_REDUCE=0.3
+SEED = 1234
+L2_REDUCE = 0.4
 L2 = True
-DROPOUT=True
-DO_PROP = 0.4
-LR= 0.05
-EPOCHS=100
-MINIBATCH_SIZE=20
-NUM_EPOCHS_DROP_LR=8
-DROP_LR=0.5
-
+DROPOUT = True
+DO_PROP = 0.2
+LR = 0.1
+EPOCHS = 100
+MINIBATCH_SIZE = 20
+NUM_EPOCHS_DROP_LR = 8
+DROP_LR = 0.7
 np.random.seed(SEED)
 class nn_layer:
 
@@ -89,7 +88,7 @@ class model:
         for layer in reversed(self.layers):
             if layer==self.layers[-1]:
                 dcrossent_dzo = layer.activated_output-y
-                layer.der_w= np.dot(layer.input.T,dcrossent_dzo)
+                layer.der_w= np.dot(layer.input.T,dcrossent_dzo)/layer.input.shape[0]
                 layer.der_b = dcrossent_dzo
                 next_derivative=np.dot(dcrossent_dzo,layer.W.T)
 
@@ -106,6 +105,7 @@ class model:
             layer.der_b=np.mean(layer.der_b,axis=0)
             if l_2:
                 layer.W = layer.W - lr * (layer.der_w +l2_d*layer.W/num_examples)
+                # layer.W = layer.W - lr * (layer.der_w + l2_d * layer.W)
                 layer.b = layer.b - lr * (layer.der_b)
             else:
                 layer.W=layer.W- lr*layer.der_w
@@ -128,7 +128,6 @@ class model:
                 lr = self.decay_lr_2(lr, train_accuracy_list[epoch-1],train_accuracy_list[epoch-2],train_accuracy_list[epoch-3],0.002)
             train_predict=np.zeros(shape=train_y.shape)
             for i in range(0,train_x.shape[0],batch_size):
-                # print(i)
                 train_x_mini= train_x[i:i+batch_size]
                 train_y_mini = train_y[i:i+batch_size]
                 t_t=self.forward(train_x_mini,dropout_prop,dropout)
@@ -204,7 +203,17 @@ class model:
             layer.b = b
             self.add_layer(layer)
 
-
+    def test_prediction(self,test_data_path,results_path,model_path=None,upload_model=False):
+        test_x = Utils.readData(test_data_path, True)
+        if upload_model:
+           model.load_model_data(model_path)
+        prediction=self.predict(test_x,DO_PROP,DROPOUT)
+        argmax_prediction=np.argmax(prediction,axis=1)
+        f = open(results_path,"w")
+        for i in range(len(argmax_prediction)):
+            f.write(str(argmax_prediction[i]+1)+ "\n")
+        f.truncate(f.tell() - 2)
+        f.close()
 
     def create_examples_and_labels(self,num_examples,num_features):
         a_examples = np.random.randn(num_examples, num_features) + np.array([5, 5])
@@ -224,18 +233,14 @@ if __name__ == '__main__':
     # model.add_layer(nn_layer(6,4,"softmax"))
     # train_x,train_y=model.create_examples_and_labels(5,2)
     # val_x,val_y= model.create_examples_and_labels(2,2)
-    model.add_layer(nn_layer(3072,128,"relu"))
-    model.add_layer(nn_layer(128, 128, "relu"))
-    model.add_layer(nn_layer(128, 128, "relu"))
-    model.add_layer(nn_layer(128, 64, "relu"))
-    model.add_layer(nn_layer(64, 32, "relu"))
-    model.add_layer(nn_layer(32,10,"softmax"))
+    model.add_layer(nn_layer(3072, 1024, "relu"))
+    model.add_layer(nn_layer(1024, 10, "softmax"))
     train_x,train_y = Utils.load_data_pickle("train.pkl")
     val_x,val_y = Utils.load_data_pickle("validate.pkl")
     train_x=model.normalize_train_data(train_x)
     val_x=(val_x-model.avg)/model.std
     model.train(train_x,train_y,val_x,val_y,MINIBATCH_SIZE,EPOCHS,LR,DO_PROP,DROPOUT)
-    model_path = "model2.pkl"
+    model_path = "model_best.pkl"
     model.save_model_data(model_path)
 
 
